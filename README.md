@@ -1,51 +1,78 @@
-# 🩻 GUIDE
+# 🧭 GUIDE
 
 **Gallbladder Cancer Unenhanced CT Intelligent Detection and Evaluation**
 
-GUIDE is a deep learning system for gallbladder cancer (GBC) detection and lesion characterization on unenhanced CT (NC).
+Gallbladder cancer detection and lesion characterization on unenhanced CT.
 
-GUIDE uses paired NC and portal venous-phase contrast-enhanced CT (PV) during training and **requires NC alone at inference**. Its outputs include:
+**🧠 Training:** paired NC + PV CT　·　**🩻 Inference:** NC CT alone
 
-- Three-class probabilities: `0 = normal gallbladder`, `1 = benign gallbladder disease`, and `2 = GBC`.
-- Classification uncertainty.
-- Gallbladder and lesion probability maps.
-- Maximum lesion diameter in millimeters, with lesion-size assessment at a 10-mm threshold.
+[🔎 Overview](#overview) · [🧠 Framework](#framework) · [🏷️ Supervision](#supervision) · [🧪 Study design](#study-design) · [📂 Availability](#availability)
 
-## 🏥 Study overview
+<a id="overview"></a>
 
-The retrospective study included **1533 patients from seven Chinese hospitals**: 282 normal, 510 benign, and 741 GBC cases.
+## 🔎 Overview
 
-| Partition | Source | Patients |
-| --- | --- | ---: |
-| Training | Southwest Hospital | 718 |
-| Internal validation | Southwest Hospital | 90 |
-| Internal test | Southwest Hospital | 89 |
-| External validation | Six other hospitals | 636 |
+Gallbladder cancer can resemble benign inflammatory disease on unenhanced CT. **GUIDE** combines diagnostic classification, anatomical localization, and quantitative lesion assessment to support gallbladder evaluation from a single unenhanced examination.
 
-Patients did not overlap between partitions. Only the training partition was used for parameter updates; internal validation was used for model selection and hyperparameter tuning.
+Paired unenhanced CT (**NC**) and portal venous-phase contrast-enhanced CT (**PV**) provide supervision during training. **Only NC is required at inference.**
 
-Annotations were available at three levels: **L1**, case-level labels (1533 patients); **L2**, paired NC/PV gallbladder masks (449 patients); and **L3**, PV lesion masks and maximum-diameter measurements (156 patients). These counts refer to the full study cohort. The annotation levels were not strictly nested, and each supervised loss used only the annotations available for a training case.
+| Capability | Output |
+| :--- | :--- |
+| **🩺 Diagnosis** | Probabilities for normal gallbladder, benign disease, and gallbladder cancer, with classification uncertainty |
+| **🧩 Localization and segmentation** | Gallbladder location and probability maps for the gallbladder and lesions |
+| **📏 Lesion measurement** | Maximum lesion diameter in millimeters |
 
-## 🧠 Method
+<a id="framework"></a>
 
-GUIDE first localizes the gallbladder, then analyzes the gallbladder region and surrounding tissue. A **SwinUNETR-v2** backbone combines anatomical guidance with three modules:
+## 🧠 Framework
 
-- **PCAD — Phase-Contrast Anatomical Distillation:** transfers information from paired PV images to the NC pathway through anatomy-guided alignment and confidence-weighted distillation.
-- **UEPD — Uncertainty-aware Evidential Prototype Disentanglement:** separates background, shared benign–malignant, and cancer-specific representations using anatomical guidance and classification uncertainty.
-- **AFDG — Anatomy-anchored Frequency-Domain Generalization:** exchanges high-frequency feature components between randomly paired training cases while preserving low-frequency components and encouraging consistent predictions. It does not require center labels.
+GUIDE first localizes the gallbladder, then analyzes the gallbladder region and surrounding tissue using a **SwinUNETR-v2** backbone. Three modules support cross-phase learning, benign–malignant differentiation, and generalization across imaging conditions.
 
-## 📊 Key results
+**🔄 PCAD — Phase-Contrast Anatomical Distillation**
 
-| Evaluation | Result |
-| --- | ---: |
-| External AUC, GBC versus all non-GBC cases (n = 636) | 0.970 |
-| External AUC, GBC versus benign disease (n = 604) | 0.962 |
-| External three-class accuracy (n = 636) | 86.9% |
-| Lesion segmentation Dice (70 external GBC cases with L3 annotations) | 0.660 |
-| Maximum-diameter mean absolute error (same 70 cases) | 3.09 mm |
+Transfers enhancement-related information from paired PV images to the NC pathway. Anatomy-guided deformable alignment establishes feature correspondence, while confidence-weighted residual distillation guides learning from cross-phase differences.
 
-In a paired reader study involving six radiologists and 160 examinations, GUIDE assistance increased the mean AUC for GBC versus non-GBC from **0.801 to 0.869**.
+**🎯 UEPD — Uncertainty-aware Evidential Prototype Disentanglement**
 
-## 📂 Data availability
+Separates background, shared benign–malignant, and cancer-specific representations. Anatomical guidance, prediction uncertainty, and prototype constraints help identify cancer evidence beyond features shared with benign disease.
 
-De-identified participant-level data and a data dictionary will be available upon reasonable request after publication, subject to institutional approval and a signed data use agreement. Requests should be directed to the corresponding author with a research proposal specifying the intended analyses.
+**🌐 AFDG — Anatomy-anchored Frequency-Domain Generalization**
+
+Aims to reduce reliance on acquisition-related texture by exchanging high-frequency features between randomly paired training cases while preserving low-frequency components. Prediction consistency and anatomical constraints guide learning without requiring center labels.
+
+<a id="supervision"></a>
+
+## 🏷️ Supervision
+
+Each training case contributes to the tasks for which reference annotations are available.
+
+| Level | Annotation | Role |
+| :---: | :--- | :--- |
+| **L1** | Case-level diagnostic label | Three-class classification |
+| **L2** | Gallbladder masks on paired NC and PV images | Gallbladder segmentation and anatomical guidance |
+| **L3** | PV lesion masks and maximum-diameter measurements | Lesion segmentation and diameter estimation |
+
+The levels are **not strictly nested**; each supervised loss is activated only when its required annotations are available. PV-derived lesion masks are transferred to NC space for lesion supervision.
+
+<a id="study-design"></a>
+
+## 🧪 Study design
+
+The retrospective multicenter study uses independent patient partitions for model development and evaluation.
+
+| Component | Design |
+| :--- | :--- |
+| **⚙️ Development** | Training and internal validation at one center, with internal validation used for model selection and hyperparameter tuning |
+| **🧪 Internal testing** | A separate cohort from the development center, held out from model fitting and selection |
+| **🌍 External validation** | Independent evaluation at six additional centers excluded from model development |
+| **👥 Reader study** | Six radiologists interpret 160 held-out examinations without and with GUIDE assistance, separated by a one-month washout |
+
+Patients do not overlap between partitions. Evaluation covers three-class diagnosis, GBC versus non-GBC and versus benign disease, lesion segmentation, maximum-diameter estimation, and reader assistance. Lesion-size analyses use a **10-mm threshold**.
+
+<a id="availability"></a>
+
+## 📂 Availability
+
+**💻 Code.** Source code is available in this repository under the [MIT licence](https://github.com/alexsun1215/GUIDE/blob/main/LICENSE). The associated manuscript is currently under review.
+
+**🔒 Data.** Clinical images and participant-level datasets are not included in this repository. After publication, de-identified participant-level data and a data dictionary will be available upon reasonable request to the corresponding author, subject to institutional approval and a signed data use agreement.
